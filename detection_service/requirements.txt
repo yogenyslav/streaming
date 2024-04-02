@@ -1,0 +1,4 @@
+ultralytics
+aiokafka
+pymongo
+opencv-python

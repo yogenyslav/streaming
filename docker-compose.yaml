@@ -1,0 +1,114 @@
+version: "3.9"
+
+volumes:
+  pg_data:
+  frame_mongo:
+  frame_mongo_conf:
+  kafka_conf:
+  kafka_data:
+  kafka_secrets:
+  static:
+  zoo_data:
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "22181:2181"
+    volumes:
+      - zoo_data:/var/lib/zookeeper/log
+      - zoo_data:/etc/zookeeper/secrets
+      - zoo_data:/var/lib/zookeeper/data
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    restart: always
+    depends_on:
+      - zookeeper
+    ports:
+      - "29092:29092"
+    hostname: kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+    volumes:
+      - kafka_conf:/mnt/shared/config
+      - kafka_data:/var/lib/kafka/data
+      - kafka_secrets:/etc/kafka/secrets
+
+
+  detection_service:
+    build:
+      context: ./detection_service
+      dockerfile: Dockerfile
+    restart: always
+    image: ${PROJECT_DIR}_detection_service
+    depends_on:
+      - kafka
+      - frame_service
+    ports:
+      - "10001:10001"
+    volumes:
+      - static:/static
+
+  frame_mongo:
+    image: mongo:5.0
+    restart: always
+#    environment:
+#      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}
+#      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+    ports:
+      - "27017:27017"
+    volumes:
+      - frame_mongo:/data/db
+      - frame_mongo_conf:/data/configdb
+
+  frame_service:
+    build:
+      context: ./frame_service
+      dockerfile: Dockerfile
+    restart: always
+    image: ${PROJECT_DIR}_frame_service
+    depends_on:
+      - frame_mongo
+      - kafka
+    ports:
+      - "10000:10000"
+    volumes:
+      - static:/static
+
+  pg:
+    image: postgres:15
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  server:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+      target: final
+    restart: always
+    image: ${PROJECT_DIR}_api
+    depends_on:
+      - pg
+      - frame_mongo
+      - frame_service
+      - kafka
+    ports:
+      - "9999:9999"
+    command: ./main
+    volumes:
+      - static:/static

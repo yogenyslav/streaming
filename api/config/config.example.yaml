@@ -1,0 +1,16 @@
+server:
+  port: 9999
+  logLevel: "debug"
+  corsOrigins: "http://localhost:3000"
+
+postgres:
+  user: "pguser"
+  password: "pgpass"
+  host: "pg"
+  port: 5432
+  db: "dev"
+  ssl: false
+
+frameService:
+  host: "frameService"
+  port: 10000
