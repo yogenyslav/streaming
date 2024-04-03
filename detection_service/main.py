@@ -47,9 +47,9 @@ async def detect():
         bootstrap_servers="kafka:29092",
         value_serializer=lambda x: json.dumps(x).encode(encoding="utf-8"),
     )
-
+    await producer.start()
+    await consumer.start()
     try:
-        await consumer.start()
         async for msg in consumer:
             query_id = msg.value["query_id"]
             print(f"query_id {query_id}")
@@ -74,29 +74,22 @@ async def detect():
                             int(filename.split("_")[-1].split(".")[0])
                             == total_frames + 1
                         ):
-                            await producer.start()
-                            try:
-                                print("done")
-                                await producer.send_and_wait(
-                                    "status",
-                                    {"query_id": query_id, "status": "success"},
-                                )
-                            finally:
-                                await producer.stop()
+                            print("done")
+                            await producer.send_and_wait(
+                                "status",
+                                {"query_id": query_id, "status": "success"},
+                            )
                             processing.remove(query_id)
 
     except Exception as e:
         print(str(e))
-        await producer.start()
-        try:
-            await producer.send_and_wait(
-                "status", {"query_id": query_id, "status": "error"}
-            )
-        finally:
-            await producer.stop()
+        await producer.send_and_wait(
+            "status", {"query_id": query_id, "status": "error"}
+        )
         processing.remove(query_id)
 
     finally:
+        await producer.stop()
         await consumer.stop()
 
 

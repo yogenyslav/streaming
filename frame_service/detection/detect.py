@@ -1,6 +1,7 @@
 import json
 import asyncio
 from aiokafka import AIOKafkaProducer, AIOKafkaConsumer
+from grpc.aio import ServicerContext
 
 
 async def process(data: dict):
@@ -27,7 +28,7 @@ async def cancel(query_id: int):
         await producer.stop()
 
 
-async def receive():
+async def receive(query_id: int, context: ServicerContext):
     consumer = AIOKafkaConsumer(
         "status",
         bootstrap_servers="kafka:29092",
@@ -37,9 +38,14 @@ async def receive():
 
     status = ""
 
+    await consumer.start()
     try:
-        await consumer.start()
         async for msg in consumer:
+            if context.cancelled():
+                print("context was canceled")
+                await cancel(query_id)
+                await consumer.stop()
+                return "canceled"
             status = msg.value["status"]
             print(status)
             await consumer.stop()

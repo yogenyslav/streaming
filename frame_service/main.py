@@ -64,7 +64,7 @@ class FrameService(pb.frame_pb2_grpc.FrameServiceServicer):
             if frame >= total_frames:
                 break
 
-        status = await detect.receive()
+        status = await detect.receive(query.id, context)
         log.info(f"finished processing with status {status}")
         res: ResponseStatus
         match status:
@@ -72,6 +72,8 @@ class FrameService(pb.frame_pb2_grpc.FrameServiceServicer):
                 res = ResponseStatus.Success
             case "error":
                 res = ResponseStatus.Error
+            case "canceled":
+                res = ResponseStatus.Canceled
         return Response(status=res)
 
     def FindProcessed(self, query: ProcessedReq, context: ServicerContext):
