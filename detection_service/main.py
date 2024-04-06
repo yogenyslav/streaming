@@ -10,7 +10,7 @@ from ultralytics.engine.results import Results
 
 
 client = pymongo.MongoClient("mongodb://frame_mongo:27017/dev")
-processing: set[int] = set()
+processing: dict[int, bool] = {}
 
 
 def inference(model: YOLO, file: str, filename: str):
@@ -46,47 +46,47 @@ async def detect():
     producer = AIOKafkaProducer(
         bootstrap_servers="kafka:29092",
         value_serializer=lambda x: json.dumps(x).encode(encoding="utf-8"),
+        acks="all",
+        enable_idempotence=True,
     )
     await producer.start()
     await consumer.start()
     try:
         async for msg in consumer:
-            query_id = msg.value["query_id"]
-            print(f"query_id {query_id}")
+            query_id: int = msg.value["query_id"]
+            print(f"\nquery_id {query_id}")
 
             if query_id not in processing:
-                processing.add(query_id)
+                processing[query_id] = True
 
             match msg.topic:
                 case "cancel":
-                    processing.remove(query_id)
+                    processing[query_id] = False
                 case "frames":
                     filename: str = msg.value["filename"]
                     total_frames: int = msg.value["total_frames"]
-                    file = msg.value["data"][1:]
+                    file: str = msg.value["data"]
                     print(f"filename {filename}")
                     print(f"total_frames {total_frames}")
 
-                    if query_id in processing:
+                    if query_id in processing and processing[query_id]:
                         inference(model, file, filename)
-                        print(int(filename.split("_")[-1].split(".")[0]))
-                        if (
-                            int(filename.split("_")[-1].split(".")[0])
-                            == total_frames + 1
-                        ):
+                        await producer.send_and_wait(
+                            f"status_{query_id}",
+                            {"filename": filename, "status": "success"},
+                        )
+                        print(f"frame {filename} processed")
+
+                        if int(filename.split("_")[-1].split(".")[0]) == total_frames:
+                            processing[query_id] = False
                             print("done")
-                            await producer.send_and_wait(
-                                "status",
-                                {"query_id": query_id, "status": "success"},
-                            )
-                            processing.remove(query_id)
 
     except Exception as e:
         print(str(e))
         await producer.send_and_wait(
-            "status", {"query_id": query_id, "status": "error"}
+            f"status_{query_id}", {"filename": filename, "status": "error"}
         )
-        processing.remove(query_id)
+        processing[query_id] = False
 
     finally:
         await producer.stop()

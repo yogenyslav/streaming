@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,6 +31,16 @@ func NewHandler(controller queryController) *Handler {
 		controller: controller,
 		validator:  validator.New(validator.WithPrivateFieldValidation()),
 		processing: make(map[int64]context.CancelFunc),
+	}
+}
+
+func (h *Handler) CancelProcessing() {
+	var err error
+	for id, _ := range h.processing {
+		err = h.controller.CancelById(context.Background(), h.processing, id)
+		if err != nil {
+			slog.Warn(fmt.Sprintf("failed to cancel processing id: %d: %v", id, err))
+		}
 	}
 }
 

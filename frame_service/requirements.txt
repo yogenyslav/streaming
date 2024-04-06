@@ -4,3 +4,4 @@ opencv-python
 pymongo
 aiokafka
 Pillow
+apscheduler

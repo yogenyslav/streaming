@@ -65,6 +65,7 @@ func (ctrl *Controller) FindOneByQueryId(ctx context.Context, queryId int64) (mo
 	in := &pb.ProcessedReq{QueryId: queryId}
 	resp, err := ctrl.frameService.FindProcessed(ctx, in)
 	if err != nil {
+		logger.Errorf("failed to find processed frames: %v", err)
 		return res, shared.ErrFindProcessed
 	}
 

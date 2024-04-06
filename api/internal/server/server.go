@@ -81,6 +81,7 @@ func (s *Server) Run() {
 	<-ch
 
 	s.pg.Close()
+	queryHandler.CancelProcessing()
 	if err = s.app.Shutdown(); err != nil {
 		logger.Warnf("failed to shutdown the app: %v", err)
 	}
