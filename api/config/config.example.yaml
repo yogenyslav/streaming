@@ -12,5 +12,11 @@ postgres:
   ssl: false
 
 frameService:
-  host: "frameService"
+  host: "frame"
   port: 10000
+
+minio:
+  host: "minio"
+  accessKey: "accessKey"
+  secretKey: "secretKey"
+  ssl: false

@@ -10,7 +10,7 @@ from grpc.aio import ServicerContext
 from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 
 
-_client = pymongo.MongoClient("mongodb://frame_mongo:27017/dev")
+_client = pymongo.MongoClient("mongodb://mongo:27017/dev")
 executors = {"default": ThreadPoolExecutor(20), "processpool": ProcessPoolExecutor(5)}
 
 scheduler = AsyncIOScheduler(executors=executors)
@@ -41,7 +41,7 @@ def outbox():
 async def process(data: dict) -> bool:
     success = False
     producer = AIOKafkaProducer(
-        bootstrap_servers="kafka:29092",
+        bootstrap_servers="kafka-service:29092",
         value_serializer=lambda x: json.dumps(x).encode(encoding="utf-8"),
         acks="all",
         enable_idempotence=True,
@@ -59,7 +59,7 @@ async def process(data: dict) -> bool:
 
 async def cancel(query_id: int):
     producer = AIOKafkaProducer(
-        bootstrap_servers="kafka:29092",
+        bootstrap_servers="kafka-service:29092",
         value_serializer=lambda x: json.dumps(x).encode(encoding="utf-8"),
         acks="all",
         enable_idempotence=True,
@@ -74,7 +74,7 @@ async def cancel(query_id: int):
 async def receive(query_id: int, total_frames: int, context: ServicerContext):
     consumer = AIOKafkaConsumer(
         f"status_{query_id}",
-        bootstrap_servers="kafka:29092",
+        bootstrap_servers="kafka-service:29092",
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 

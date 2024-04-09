@@ -9,7 +9,7 @@ from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
 
-client = pymongo.MongoClient("mongodb://frame_mongo:27017/dev")
+client = pymongo.MongoClient("mongodb://mongo:27017/dev")
 processing: dict[int, bool] = {}
 
 
@@ -39,12 +39,12 @@ async def detect():
     consumer = AIOKafkaConsumer(
         "frames",
         "cancel",
-        bootstrap_servers="kafka:29092",
+        bootstrap_servers="kafka-service:29092",
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
     )
 
     producer = AIOKafkaProducer(
-        bootstrap_servers="kafka:29092",
+        bootstrap_servers="kafka-service:29092",
         value_serializer=lambda x: json.dumps(x).encode(encoding="utf-8"),
         acks="all",
         enable_idempotence=True,

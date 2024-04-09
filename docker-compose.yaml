@@ -2,16 +2,29 @@ version: "3.9"
 
 volumes:
   pg_data:
-  frame_mongo:
-  frame_mongo_conf:
+  mongo:
+  mongo_conf:
   kafka_conf:
   kafka_data:
   kafka_secrets:
   static:
   zoo_data:
+  minio:
 
 services:
-  zookeeper:
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio:/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    command: server --console-address ":9001" /data
+
+  zookeeper-service:
     image: confluentinc/cp-zookeeper:latest
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
@@ -23,18 +36,18 @@ services:
       - zoo_data:/etc/zookeeper/secrets
       - zoo_data:/var/lib/zookeeper/data
 
-  kafka:
+  kafka-service:
     image: confluentinc/cp-kafka:latest
     restart: always
     depends_on:
-      - zookeeper
+      - zookeeper-service
     ports:
       - "29092:29092"
-    hostname: kafka
+    hostname: kafka-service
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper-service:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-service:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     volumes:
@@ -43,21 +56,21 @@ services:
       - kafka_secrets:/etc/kafka/secrets
 
 
-  detection_service:
+  detection:
     build:
       context: ./detection_service
       dockerfile: Dockerfile
     restart: always
     image: ${PROJECT_DIR}_detection_service
     depends_on:
-      - kafka
-      - frame_service
+      - kafka-service
+      - frame
     ports:
       - "10001:10001"
     volumes:
       - static:/static
 
-  frame_mongo:
+  mongo:
     image: mongo:5.0
     restart: always
 #    environment:
@@ -66,18 +79,18 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - frame_mongo:/data/db
-      - frame_mongo_conf:/data/configdb
+      - mongo:/data/db
+      - mongo_conf:/data/configdb
 
-  frame_service:
+  frame:
     build:
       context: ./frame_service
       dockerfile: Dockerfile
     restart: always
     image: ${PROJECT_DIR}_frame_service
     depends_on:
-      - frame_mongo
-      - kafka
+      - mongo
+      - kafka-service
     ports:
       - "10000:10000"
     volumes:
@@ -95,7 +108,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
 
-  server:
+  api:
     build:
       context: ./api
       dockerfile: Dockerfile
@@ -104,9 +117,10 @@ services:
     image: ${PROJECT_DIR}_api
     depends_on:
       - pg
-      - frame_mongo
-      - frame_service
-      - kafka
+      - mongo
+      - frame
+      - detection
+      - kafka-service
     ports:
       - "9999:9999"
     command: ./main
