@@ -20,3 +20,10 @@ minio:
   accessKey: "accessKey"
   secretKey: "secretKey"
   ssl: false
+  buckets:
+    - name: "test-1"
+      region: "eu-west-1"
+      lock: true
+    - name: "test-2"
+      region: "eu-west-1"
+      lock: false

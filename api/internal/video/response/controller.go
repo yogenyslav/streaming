@@ -2,11 +2,16 @@ package response
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"time"
 
 	"streaming/internal/pb"
 	"streaming/internal/shared"
 	"streaming/internal/video/response/model"
+	"streaming/pkg/storage/minios3"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/yogenyslav/logger"
 	"google.golang.org/grpc"
 )
@@ -20,12 +25,14 @@ type responseRepo interface {
 type Controller struct {
 	repo         responseRepo
 	frameService pb.FrameServiceClient
+	s3           *minios3.S3
 }
 
-func NewController(repo responseRepo, frameConn *grpc.ClientConn) *Controller {
+func NewController(repo responseRepo, frameConn *grpc.ClientConn, s3 *minios3.S3) *Controller {
 	return &Controller{
 		repo:         repo,
 		frameService: pb.NewFrameServiceClient(frameConn),
+		s3:           s3,
 	}
 }
 
@@ -73,4 +80,25 @@ func (ctrl *Controller) FindOneByQueryId(ctx context.Context, queryId int64) (mo
 	res.Source = resp.GetSrc()
 
 	return res, nil
+}
+
+func (ctrl *Controller) GetStatic(ctx context.Context, name string) ([]byte, error) {
+	url, err := ctrl.s3.PresignedGetObject(ctx, "frame", name, time.Hour*24*7, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := http.Get(url.String())
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Errorf("status is %s", resp.Status)
+		return nil, fiber.ErrBadRequest
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	return body, nil
 }

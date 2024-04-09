@@ -28,3 +28,14 @@ const insertOne = `
 func (r *Repo) InsertOne(ctx context.Context, params model.Query) (int64, error) {
 	return postgres.QueryPrimitive[int64](ctx, r.pg, insertOne, params.Type, params.Source)
 }
+
+const updateSource = `
+	update query
+	set source = $1
+	where id = $2;
+`
+
+func (r *Repo) UpdateSource(ctx context.Context, id int64, source string) error {
+	_, err := r.pg.Exec(ctx, updateSource, source, id)
+	return err
+}

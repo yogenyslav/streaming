@@ -1,7 +1,7 @@
 package config
 
 import (
-	"streaming/pkg/storage/s3"
+	"streaming/pkg/storage/minios3"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/yogenyslav/storage/postgres"
@@ -11,7 +11,7 @@ type Config struct {
 	Server       ServerConfig       `yaml:"server"`
 	Postgres     postgres.Config    `yaml:"postgres"`
 	FrameService FrameServiceConfig `yaml:"frameService"`
-	S3Config     s3.Config          `yaml:"minio"`
+	S3Config     minios3.Config     `yaml:"minio"`
 }
 
 type ServerConfig struct {

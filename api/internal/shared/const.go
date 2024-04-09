@@ -19,4 +19,5 @@ const (
 const (
 	UniqueViolationCode = "23505"
 	PreprocessedFileExt = ".mp4"
+	VideoBucket         = "video"
 )

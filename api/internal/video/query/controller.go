@@ -2,7 +2,8 @@ package query
 
 import (
 	"context"
-	"os"
+	"mime/multipart"
+	"strings"
 	"sync"
 
 	"streaming/internal/pb"
@@ -10,7 +11,9 @@ import (
 	"streaming/internal/video/query/model"
 	respModel "streaming/internal/video/response/model"
 	"streaming/pkg"
+	"streaming/pkg/storage/minios3"
 
+	"github.com/minio/minio-go/v7"
 	"github.com/yogenyslav/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -19,6 +22,7 @@ import (
 
 type queryRepo interface {
 	InsertOne(ctx context.Context, params model.Query) (int64, error)
+	UpdateSource(ctx context.Context, id int64, source string) error
 }
 
 type responseController interface {
@@ -30,23 +34,21 @@ type Controller struct {
 	qr           queryRepo
 	rc           responseController
 	frameService pb.FrameServiceClient
+	s3           *minios3.S3
 	mu           sync.Mutex
 }
 
-func NewController(qr queryRepo, rc responseController, frameConn *grpc.ClientConn) *Controller {
+func NewController(qr queryRepo, rc responseController, frameConn *grpc.ClientConn, s3 *minios3.S3) *Controller {
 	return &Controller{
 		qr:           qr,
 		rc:           rc,
+		s3:           s3,
 		frameService: pb.NewFrameServiceClient(frameConn),
 	}
 }
 
 func (ctrl *Controller) InsertOne(ctx context.Context, processing map[int64]context.CancelFunc, params model.QueryCreateReq) (int64, error) {
-	query := model.Query{
-		Type:      pkg.QueryType(params.Source),
-		Source:    params.Source + shared.PreprocessedFileExt,
-		CreatedAt: pkg.GetLocalTime(),
-	}
+	query := model.Query{Type: pkg.QueryType(params.Source)}
 
 	if query.Type == shared.TypeLink && params.Timeout == 0 {
 		return 0, shared.ErrUnspecifiedTimeoutForLink
@@ -67,9 +69,9 @@ func (ctrl *Controller) InsertOne(ctx context.Context, processing map[int64]cont
 
 	go func() {
 		var (
-			err           error
-			ctx, cancel   = context.WithCancel(ctx)
-			initialSource = params.Source + "_" + params.FileExt
+			rawFile     multipart.File
+			err         error
+			ctx, cancel = context.WithCancel(ctx)
 		)
 		defer cancel()
 
@@ -91,15 +93,26 @@ func (ctrl *Controller) InsertOne(ctx context.Context, processing map[int64]cont
 		}()
 
 		if query.Type == shared.TypeFile {
-			if err = pkg.EncodeH264(params.Source, params.FileExt); err != nil {
-				logger.Errorf("failed to encode file %s into H264 format: %v", initialSource, err)
+			rawFile, err = params.File.Open()
+			if err != nil {
+				logger.Errorf("failed to open file: %v", err)
 				return
 			}
 
-			if err = os.Remove(initialSource); err != nil {
-				logger.Warnf("initial file %s was not deleted: %v", initialSource, err)
+			split := strings.Split(params.File.Filename, ".")
+			source := params.Name.String() + "." + split[len(split)-1]
+			_, err = ctrl.s3.PutObject(ctx, shared.VideoBucket, source, rawFile, params.File.Size, minio.PutObjectOptions{})
+			if err != nil {
+				logger.Errorf("failed to put file into s3: %v", err)
 				return
 			}
+
+			if err = ctrl.qr.UpdateSource(ctx, id, source); err != nil {
+				logger.Errorf("failed to update file query source: %v", err)
+				return
+			}
+
+			query.Source = source
 		}
 
 		in := &pb.Query{
@@ -148,7 +161,6 @@ func (ctrl *Controller) process(ctx context.Context, processing map[int64]contex
 	delete(processing, params.Id)
 	logger.Debugf("processed %v", processing)
 	ctrl.mu.Unlock()
-
 	return nil
 }
 

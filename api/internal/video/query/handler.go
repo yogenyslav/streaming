@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"streaming/internal/video/query/model"
 
@@ -55,17 +54,13 @@ func (h *Handler) File(ctx *fiber.Ctx) error {
 		return err
 	}
 
-	fileNameSplit := strings.Split(file.Filename, ".")
-	fileExt := "." + fileNameSplit[len(fileNameSplit)-1]
-	source := "./static/" + uuid.New().String()
-
-	if err = ctx.SaveFile(file, source+"_"+fileExt); err != nil {
-		return err
-	}
+	//fileNameSplit := strings.Split(file.Filename, ".")
+	//fileExt := "." + fileNameSplit[len(fileNameSplit)-1]
+	//source := "./static/" + uuid.New().String()
 
 	req := model.QueryCreateReq{
-		Source:  source,
-		FileExt: fileExt,
+		Name: uuid.New(),
+		File: file,
 	}
 	queryId, err = h.controller.InsertOne(ctx.Context(), h.processing, req)
 	if err != nil {

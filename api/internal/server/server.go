@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -11,6 +12,7 @@ import (
 	"streaming/internal/video"
 	"streaming/internal/video/query"
 	"streaming/internal/video/response"
+	"streaming/pkg/storage/minios3"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -56,6 +58,13 @@ func New(cfg *config.Config) *Server {
 func (s *Server) Run() {
 	s.app.Static("/static", "/static")
 
+	s3 := minios3.MustNew(&s.cfg.S3Config)
+	if buckets, err := s3.ListBuckets(context.Background()); err != nil || len(buckets) == 0 {
+		if err = s3.CreateBuckets(context.Background()); err != nil {
+			logger.Panicf("failed to create s3 buckets: %v", err)
+		}
+	}
+
 	var grpcOpts []grpc.DialOption
 	grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	frameAddr := fmt.Sprintf("%s:%d", s.cfg.FrameService.Host, s.cfg.FrameService.Port)
@@ -65,12 +74,12 @@ func (s *Server) Run() {
 	}
 
 	responseRepo := response.NewRepo(s.pg)
-	responseController := response.NewController(responseRepo, frameConn)
+	responseController := response.NewController(responseRepo, frameConn, s3)
 	responseHandler := response.NewHandler(responseController)
 	video.SetupResponseRoutes(s.app, responseHandler)
 
 	queryRepo := query.NewRepo(s.pg)
-	queryController := query.NewController(queryRepo, responseController, frameConn)
+	queryController := query.NewController(queryRepo, responseController, frameConn, s3)
 	queryHandler := query.NewHandler(queryController)
 	video.SetupQueryRoutes(s.app, queryHandler)
 

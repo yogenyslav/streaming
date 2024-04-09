@@ -12,6 +12,7 @@ type queryHandler interface {
 
 type responseHandler interface {
 	FindOneByQueryId(ctx *fiber.Ctx) error
+	GetStatic(ctx *fiber.Ctx) error
 }
 
 func SetupQueryRoutes(app *fiber.App, h queryHandler) {
@@ -26,4 +27,5 @@ func SetupResponseRoutes(app *fiber.App, h responseHandler) {
 	g := app.Group("/api/video")
 
 	g.Get("/result/:id", h.FindOneByQueryId)
+	g.Get("/result/static/:name", h.GetStatic)
 }

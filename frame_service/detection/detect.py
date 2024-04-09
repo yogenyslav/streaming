@@ -18,7 +18,6 @@ _fs = gridfs.GridFS(_client.get_database("dev"))
 
 
 def outbox():
-    print("Checking for new files")
     col = _client.get_database("dev").get_collection("fs.files")
     files = col.find({"sent": False})
     for file in files:
