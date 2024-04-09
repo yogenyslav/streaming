@@ -56,8 +56,6 @@ func New(cfg *config.Config) *Server {
 }
 
 func (s *Server) Run() {
-	s.app.Static("/static", "/static")
-
 	s3 := minios3.MustNew(&s.cfg.S3Config)
 	if buckets, err := s3.ListBuckets(context.Background()); err != nil || len(buckets) == 0 {
 		if err = s3.CreateBuckets(context.Background()); err != nil {
