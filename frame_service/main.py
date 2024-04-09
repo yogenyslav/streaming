@@ -103,33 +103,10 @@ class FrameService(pb.frame_pb2_grpc.FrameServiceServicer):
             .find({"query_id": query.queryId, "processed": True})
         )
 
-        src: list[str] = []
-
+        src = []
         for f in files:
-            boxes = (
-                client.get_database("dev")
-                .get_collection("boxes")
-                .find({"filename": f["filename"]})
-            )
+            src.append(f.get("filename"))
 
-            flag = False
-            res = fs.get(ObjectId(f["_id"]))
-            path = f"processed_{f['filename']}"
-            t = base64.b64decode(res.read().decode("utf-8"))
-            img = np.array(Image.open(BytesIO(t)))
-            for box in boxes:
-                flag = True
-                cv2.rectangle(
-                    img, (box["lb"], box["lt"]), (box["rb"], box["rt"]), (255, 0, 0), 1
-                )
-
-            if flag:
-                data = BytesIO()
-                Image.fromarray(img).save(data, "JPEG")
-                data.seek(0)
-                s3.put_object("frame", path, data, len(data.getvalue()))
-                res = s3.presigned_get_object("frame", path)
-                src.append(res)
         return ProcessedResp(src=src)
 
 
