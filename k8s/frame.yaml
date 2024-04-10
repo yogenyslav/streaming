@@ -16,7 +16,7 @@ spec:
       hostname: frame-service
       containers:
         - name: frame
-          image: yogenyslav/streaming-frame:1.0.2
+          image: yogenyslav/streaming-frame:1.0.4
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 10000

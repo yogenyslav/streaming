@@ -1,0 +1,51 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      hostname: minio
+      containers:
+        - env:
+            - name: MINIO_ROOT_USER
+              value: "s3user123"
+            - name: MINIO_ROOT_PASSWORD
+              value: "s3pass123"
+          command:
+            - /bin/bash
+            - -c
+          args:
+            - minio server /data --console-address :9001
+          name: minio
+          image: minio/minio
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9000
+            - containerPort: 9001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  type: NodePort
+  ports:
+    - port: 9000
+      name: query
+      protocol: TCP
+      targetPort: 9000
+    - port: 9001
+      name: admin
+      protocol: TCP
+      targetPort: 9001
+  selector:
+    app: minio

@@ -16,7 +16,7 @@ spec:
       hostname: detection-service
       containers:
         - name: detection
-          image: yogenyslav/streaming-detection:1.0.1
+          image: yogenyslav/streaming-detection:1.0.2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 10001

@@ -29,8 +29,8 @@ client = pymongo.MongoClient("mongodb://mongo:27017/dev")
 fs = gridfs.GridFS(client.get_database("dev"))
 s3 = minio.Minio(
     "minio:9000",
-    access_key="ABYVB5wEg4PDnIx0U7DU",
-    secret_key="I56vUpDXJAgK8Tjlp9jPoTvelTzNnhKrtwEVLxmX",
+    access_key="UpD4O18jra6OzxQ1n7P7",
+    secret_key="gco0w8pUu62pwuV6ZmOyfT0ScJFE2e2jiaEqpuDC",
     secure=False,
 )
 

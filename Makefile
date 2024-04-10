@@ -71,6 +71,7 @@ proto_go:
 .PHONY: kuber_deploy
 kuber_deploy:
 	kubectl apply -f k8s/namespace.yaml
+	kubectl apply -f k8s/minio.yaml --namespace=streaming
 	kubectl apply -f k8s/postgres.yaml --namespace=streaming
 	kubectl apply -f k8s/mongo.yaml --namespace=streaming
 	kubectl apply -f k8s/zookeeper.yaml --namespace=streaming
