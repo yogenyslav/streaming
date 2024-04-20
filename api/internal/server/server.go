@@ -7,12 +7,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"streaming/config"
-	servresp "streaming/internal/server/response"
-	"streaming/internal/video"
-	"streaming/internal/video/query"
-	"streaming/internal/video/response"
-	"streaming/pkg/storage/minios3"
+	"streaming/api/config"
+	"streaming/api/internal/detection/query"
+	"streaming/api/internal/detection/response"
+	servresp "streaming/api/internal/server/response"
+	"streaming/api/pkg/storage/minios3"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -57,29 +56,21 @@ func New(cfg *config.Config) *Server {
 
 func (s *Server) Run() {
 	s3 := minios3.MustNew(&s.cfg.S3Config)
-	if buckets, err := s3.ListBuckets(context.Background()); err != nil || len(buckets) == 0 {
-		if err = s3.CreateBuckets(context.Background()); err != nil {
-			logger.Panicf("failed to create s3 buckets: %v", err)
-		}
+	if err := s3.CreateBuckets(context.Background()); err != nil {
+		logger.Panicf("failed to create s3 buckets: %v", err)
 	}
 
-	var grpcOpts []grpc.DialOption
-	grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	frameAddr := fmt.Sprintf("%s:%d", s.cfg.FrameService.Host, s.cfg.FrameService.Port)
-	frameConn, err := grpc.Dial(frameAddr, grpcOpts...)
-	if err != nil {
-		logger.Panicf("failed to connect to searchEngine: %v", err)
-	}
+	orchestrator := mustGrpcConn(&s.cfg.Orchestrator)
 
 	responseRepo := response.NewRepo(s.pg)
-	responseController := response.NewController(responseRepo, frameConn, s3)
+	responseController := response.NewController(responseRepo, orchestrator, s3)
 	responseHandler := response.NewHandler(responseController)
-	video.SetupResponseRoutes(s.app, responseHandler)
+	response.SetupResponseRoutes(s.app, responseHandler)
 
 	queryRepo := query.NewRepo(s.pg)
-	queryController := query.NewController(queryRepo, responseController, frameConn, s3)
+	queryController := query.NewController(queryRepo, responseController, orchestrator, s3)
 	queryHandler := query.NewHandler(queryController)
-	video.SetupQueryRoutes(s.app, queryHandler)
+	query.SetupQueryRoutes(s.app, queryHandler)
 
 	go s.listen(&s.cfg.Server)
 
@@ -88,14 +79,14 @@ func (s *Server) Run() {
 	<-ch
 
 	s.pg.Close()
-	queryHandler.CancelProcessing()
-	if err = s.app.Shutdown(); err != nil {
+	if err := s.app.Shutdown(); err != nil {
 		logger.Warnf("failed to shutdown the app: %v", err)
 	}
-	if err = frameConn.Close(); err != nil {
+	if err := orchestrator.Close(); err != nil {
 		logger.Warnf("failed to close frameService grpc conn: %v", err)
 	}
-	logger.Info("app was gracefully shutdown")
+
+	logger.Info("graceful shutdown finished")
 	os.Exit(0)
 }
 
@@ -103,4 +94,15 @@ func (s *Server) listen(cfg *config.ServerConfig) {
 	if err := s.app.Listen(fmt.Sprintf(":%d", cfg.Port)); err != nil {
 		logger.Errorf("unexpectedly stopping the server: %v", err)
 	}
+}
+
+func mustGrpcConn(cfg *config.ServiceConfig) *grpc.ClientConn {
+	var grpcOpts []grpc.DialOption
+	grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	conn, err := grpc.Dial(addr, grpcOpts...)
+	if err != nil {
+		logger.Panicf("failed to connect to grpc service: %v", err)
+	}
+	return conn
 }

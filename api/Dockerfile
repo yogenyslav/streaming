@@ -41,7 +41,6 @@ RUN --mount=type=cache,target=/go/pkg/mod/ \
 FROM alpine:latest AS final
 
 USER root
-RUN mkdir /static && chmod 777 -R /static
 
 # Install any runtime dependencies that are needed to run your application.
 # Leverage a cache mount to /var/cache/apk/ to speed up subsequent builds.
@@ -51,8 +50,6 @@ RUN --mount=type=cache,target=/var/cache/apk \
         tzdata \
         && \
         update-ca-certificates
-
-RUN apk add --no-cache ffmpeg
 
 # Create a non-privileged user that the app will run under.
 # See https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#user

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"streaming/internal/shared"
+	"streaming/api/internal/shared"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgconn"

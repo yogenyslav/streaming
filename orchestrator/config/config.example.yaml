@@ -1,0 +1,20 @@
+server:
+  port: 9988
+  logLevel: "debug"
+
+kafka:
+  brokers:
+    - "kafka1:29091"
+    - "kafka2:29092"
+    - "kafka3:29093"
+  topics:
+    - name: "framer"
+      partitions: 3
+    - name: "framer-result"
+      partitions: 3
+    - name: "detection"
+      partitions: 3
+    - name: "detection-result"
+      partitions: 3
+    - name: "responser"
+      partitions: 3

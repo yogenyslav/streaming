@@ -1,4 +1,4 @@
-module streaming
+module streaming/api
 
 go 1.22.0
 

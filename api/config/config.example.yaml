@@ -1,7 +1,7 @@
 server:
   port: 9999
   logLevel: "debug"
-  corsOrigins: "http://localhost:3000"
+  corsOrigins: "*"
 
 postgres:
   user: "pguser"
@@ -11,19 +11,16 @@ postgres:
   db: "dev"
   ssl: false
 
-frameService:
-  host: "frame"
-  port: 10000
+orchestrator:
+  host: "orchestrator"
+  port: 9988
 
 minio:
-  host: "minio"
-  accessKey: "accessKey"
-  secretKey: "secretKey"
+  host: "minio:9000"
+  accessKey: "access"
+  secretKey: "secret"
   ssl: false
   buckets:
-    - name: "test-1"
+    - name: "video"
       region: "eu-west-1"
       lock: true
-    - name: "test-2"
-      region: "eu-west-1"
-      lock: false

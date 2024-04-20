@@ -3,21 +3,28 @@ package shared
 type QueryType int32
 
 const (
-	TypeFile QueryType = iota
-	TypeLink
+	QueryTypeUnspecified QueryType = iota
+	QueryTypeVideo       QueryType = iota
+	QueryTypeStream
 )
 
 type ResponseStatus int32
 
 const (
-	StatusSuccess ResponseStatus = iota
-	StatusProcessing
-	StatusError
-	StatusCanceled
+	ResponseStatusUnspecified ResponseStatus = iota
+	ResponseStatusInitProcessing
+	ResponseStatusFramerProcessing
+	ResponseStatusFramerSuccess
+	ResponseStatusFramerError
+	ResponseStatusDetectionProcessing
+	ResponseStatusDetectionSuccess
+	ResponseStatusDetectionError
+	ResponseStatusSuccess
+	ResponseStatusCanceled
+	ResponseStatusError
 )
 
 const (
 	UniqueViolationCode = "23505"
-	PreprocessedFileExt = ".mp4"
 	VideoBucket         = "video"
 )

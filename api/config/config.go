@@ -1,17 +1,17 @@
 package config
 
 import (
-	"streaming/pkg/storage/minios3"
+	"streaming/api/pkg/storage/minios3"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/yogenyslav/storage/postgres"
 )
 
 type Config struct {
-	Server       ServerConfig       `yaml:"server"`
-	Postgres     postgres.Config    `yaml:"postgres"`
-	FrameService FrameServiceConfig `yaml:"frameService"`
-	S3Config     minios3.Config     `yaml:"minio"`
+	Server       ServerConfig    `yaml:"server"`
+	Postgres     postgres.Config `yaml:"postgres"`
+	Orchestrator ServiceConfig   `yaml:"orchestrator"`
+	S3Config     minios3.Config  `yaml:"minio"`
 }
 
 type ServerConfig struct {
@@ -20,7 +20,7 @@ type ServerConfig struct {
 	CorsOrigins string `yaml:"corsOrigins"`
 }
 
-type FrameServiceConfig struct {
+type ServiceConfig struct {
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
 }

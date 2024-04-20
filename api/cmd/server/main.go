@@ -1,8 +1,8 @@
 package main
 
 import (
-	"streaming/config"
-	"streaming/internal/server"
+	"streaming/api/config"
+	"streaming/api/internal/server"
 
 	"github.com/yogenyslav/logger"
 )

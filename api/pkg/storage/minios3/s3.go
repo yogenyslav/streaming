@@ -31,7 +31,7 @@ func MustNew(cfg *Config) *S3 {
 	}
 }
 
-func (s3 *S3) CreateBucket(ctx context.Context, bucket *BucketConfig) error {
+func (s3 *S3) CreateBucket(ctx context.Context, bucket BucketConfig) error {
 	return s3.conn.MakeBucket(ctx, bucket.Name, minio.MakeBucketOptions{
 		Region: bucket.Region, ObjectLocking: bucket.Lock,
 	})
@@ -39,11 +39,10 @@ func (s3 *S3) CreateBucket(ctx context.Context, bucket *BucketConfig) error {
 
 func (s3 *S3) CreateBuckets(ctx context.Context) error {
 	for _, bucket := range s3.cfg.Buckets {
-		err := s3.conn.MakeBucket(ctx, bucket.Name, minio.MakeBucketOptions{
-			Region: bucket.Region, ObjectLocking: bucket.Lock,
-		})
-		if err != nil {
-			return err
+		if exists, _ := s3.BucketExists(ctx, bucket.Name); !exists {
+			if err := s3.CreateBucket(ctx, bucket); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

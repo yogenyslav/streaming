@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"streaming/pkg"
+	"streaming/api/pkg"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"

@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package streaming;
+
+message Query {
+  int64 id = 1;
+  string source = 2;
+  QueryType type = 3;
+}
+
+enum QueryType {
+  QUERY_TYPE_UNSPECIFIED = 0;
+  QUERY_TYPE_VIDEO = 1;
+  QUERY_TYPE_STREAM = 2;
+}
+
+message Response {
+  ResponseStatus status = 1;
+}
+
+enum ResponseStatus {
+  UNSPECIFIED = 0;
+  INIT_PROCESSING = 1;
+  FRAMER_PROCESSING = 2;
+  FRAMER_SUCCESS = 3;
+  FRAMER_ERROR = 4;
+  DETECTION_PROCESSING = 5;
+  DETECTION_SUCCESS = 6;
+  DETECTION_ERROR = 7;
+  SUCCESS = 8;
+  CANCELED = 9;
+  ERROR = 10;
+}
+
+message CancelReq {
+  int64 query_id = 1;
+}
+
+message CancelResp {
+  bool success = 1;
+}
+
+message ProcessedReq {
+  int64 query_id = 1;
+}
+
+message ProcessedResp {
+  repeated string sources = 1;
+  ResponseStatus status = 2;
+}
+
+service Orchestrator {
+  rpc Process(Query) returns (Response) {}
+  rpc GetProcessed(ProcessedReq) returns (ProcessedResp) {}
+  rpc Cancel(CancelReq) returns (CancelResp) {}
+}
