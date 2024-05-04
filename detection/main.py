@@ -1,95 +1,129 @@
-import pymongo
+import os
 import asyncio
 import json
 import base64
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+import aiokafka
 from PIL import Image
+from dotenv import load_dotenv
 from io import BytesIO
 from ultralytics import YOLO
 from ultralytics.engine.results import Results
 
-
-client = pymongo.MongoClient("mongodb://mongo:27017/dev")
+load_dotenv(".env")
 processing: dict[int, bool] = {}
 
 
-def inference(model: YOLO, file: str, filename: str):
-    img = Image.open(BytesIO(base64.b64decode(file)))
-    results: list[Results] = model(img)
-    for res in results:
-        print(f"time {sum(res.speed.values())/1000}")
-        if res.boxes.data.int().numpy().shape[0] == 0:
-            continue
-        data = res.boxes.data.int().numpy()
-        print(data)
-        for d in data:
-            client.get_database("dev").get_collection("boxes").insert_one(
-                {
-                    "filename": filename,
-                    "lb": int(d[0]),
-                    "lt": int(d[1]),
-                    "rb": int(d[2]),
-                    "rt": int(d[3]),
-                }
-            )
-
-
-async def detect():
-    model = YOLO("yolov9c.pt")
-    consumer = AIOKafkaConsumer(
-        "frames",
-        "cancel",
-        bootstrap_servers="kafka-service:29092",
-        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-    )
-
-    producer = AIOKafkaProducer(
-        bootstrap_servers="kafka-service:29092",
+async def send(topic: str, data: dict):
+    producer = aiokafka.AIOKafkaProducer(
+        bootstrap_servers=os.getenv("KAFKA_HOST"),
         value_serializer=lambda x: json.dumps(x).encode(encoding="utf-8"),
         acks="all",
         enable_idempotence=True,
     )
     await producer.start()
+    try:
+        await producer.send_and_wait(topic, data)
+    finally:
+        await producer.stop()
+
+
+async def inference(model: YOLO, file: str, query_id: int, frame_id: int, last: bool):
+    img = Image.open(BytesIO(base64.b64decode(file)))
+    results: list[Results] = model(img)
+    for res in results:
+        print(f"time {sum(res.speed.values())/1000}")
+        if res.boxes.data.int().numpy().shape[0] == 0:
+            if last:
+                await send(
+                    "responser",
+                    {
+                        "img": file,
+                        "query_id": query_id,
+                        "filename": f"{query_id}_{frame_id}.jpg",
+                        "lb": -1,
+                        "lt": -1,
+                        "rb": -1,
+                        "rt": -1,
+                        "last": True,
+                    },
+                )
+            continue
+        data = res.boxes.data.int().numpy()
+        print(data)
+        for d in data:
+            await send(
+                "responser",
+                {
+                    "img": file,
+                    "query_id": query_id,
+                    "filename": f"{query_id}_{frame_id}.jpg",
+                    "lb": int(d[0]),
+                    "lt": int(d[1]),
+                    "rb": int(d[2]),
+                    "rt": int(d[3]),
+                    "last": last,
+                },
+            )
+
+
+async def detect():
+    model = YOLO("yolov9c.pt")
+    consumer = aiokafka.AIOKafkaConsumer(
+        "detection",
+        "detection-cancel",
+        bootstrap_servers=os.getenv("KAFKA_HOST"),
+        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+    )
+
     await consumer.start()
     try:
         async for msg in consumer:
-            query_id: int = msg.value["query_id"]
-            print(f"\nquery_id {query_id}")
+            try:
+                print(f"Received message: {msg.offset}")
+                cancel: bool = msg.value["cancel"]
+                query_id: int = msg.value["query_id"]
 
-            if query_id not in processing:
-                processing[query_id] = True
+                if msg.topic == "detection-cancel":
+                    print(f"cancel {cancel}")
+                    if cancel:
+                        print(f"query_id {query_id} was canceled")
+                        processing[query_id] = False
+                        continue
 
-            match msg.topic:
-                case "cancel":
-                    processing[query_id] = False
-                case "frames":
-                    filename: str = msg.value["filename"]
-                    total_frames: int = msg.value["total_frames"]
-                    file: str = msg.value["data"]
-                    print(f"filename {filename}")
-                    print(f"total_frames {total_frames}")
+                if query_id not in processing.keys():
+                    processing[query_id] = True
 
-                    if query_id in processing and processing[query_id]:
-                        inference(model, file, filename)
-                        await producer.send_and_wait(
-                            f"status_{query_id}",
-                            {"filename": filename, "status": "success"},
-                        )
-                        print(f"frame {filename} processed")
+                if not processing[query_id]:
+                    continue
 
-                        if int(filename.split("_")[-1].split(".")[0]) == total_frames:
-                            processing[query_id] = False
-                            print("done")
+                frame_id: int = msg.value["frame_id"]
+                img: str = msg.value["img"]
+                last: bool = msg.value["last"]
 
-    except Exception as e:
-        print(str(e))
-        await producer.send_and_wait(
-            f"status_{query_id}", {"filename": filename, "status": "error"}
-        )
-        processing[query_id] = False
+                await inference(model, img, query_id, frame_id, last)
+
+                print(f"Processed query {query_id} frame {frame_id}")
+
+                if last:
+                    print(f"Processed query {query_id} LAST frame {frame_id}")
+                    await send(
+                        "detection-res",
+                        data={
+                            "id": query_id,
+                            "message": "sucess",
+                        },
+                    )
+            except Exception as e:
+                print(f"detection error {str(e)}")
+                await send(
+                    "detection-res",
+                    {
+                        "id": query_id,
+                        "message": "error",
+                    },
+                )
 
     finally:
-        await producer.stop()
         await consumer.stop()
 
 

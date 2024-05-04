@@ -2,8 +2,5 @@
 .vscode
 config.yaml
 .env
-Makefile.test
-frame_service/*.jpg
-venv
-detection_service/*.jpg
+.venv
 *.ipynb

@@ -51,4 +51,4 @@ COPY . .
 EXPOSE 10001
 
 # Run the application.
-CMD python3 main.py
+CMD python main.py

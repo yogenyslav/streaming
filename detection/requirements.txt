@@ -1,4 +1,4 @@
 ultralytics
 aiokafka
-pymongo
 opencv-python
+python-dotenv

@@ -2,15 +2,13 @@
 # container here (e.g., local build artifacts, temporary files, etc.).
 #
 # For more help, visit the .dockerignore file reference guide at
-# https://docs.docker.com/engine/reference/builder/#dockerignore-file
+# https://docs.docker.com/go/build-context-dockerignore/
 
-*.ipynb
 **/.DS_Store
 **/__pycache__
-**/venv
+**/.venv
 **/.classpath
 **/.dockerignore
-**/.env
 **/.git
 **/.gitignore
 **/.project
@@ -24,7 +22,7 @@
 **/bin
 **/charts
 **/docker-compose*
-**/compose*
+**/compose.y*ml
 **/Dockerfile*
 **/node_modules
 **/npm-debug.log

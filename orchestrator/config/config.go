@@ -1,19 +1,29 @@
 package config
 
 import (
-	"streaming/orchestrator/pkg/infrastructure/kafka"
+	srvconf "streaming/orchestrator/internal/server/config"
 
 	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/yogenyslav/pkg/infrastructure/kafka"
+	"github.com/yogenyslav/pkg/infrastructure/tracing"
+	"github.com/yogenyslav/pkg/storage/minios3"
+	"github.com/yogenyslav/pkg/storage/mongo"
+	"github.com/yogenyslav/pkg/storage/postgres"
 )
 
 type Config struct {
-	Server ServerConfig  `yaml:"server"`
-	Kafka  *kafka.Config `yaml:"kafka"`
+	Server     *srvconf.ServerConfig `yaml:"server"`
+	Postgres   *postgres.Config      `yaml:"postgres"`
+	Tracing    *tracing.Config       `yaml:"tracing"`
+	S3         *minios3.Config       `yaml:"s3"`
+	Mongo      *mongo.Config         `yaml:"mongo"`
+	Kafka      *kafka.Config         `yaml:"kafka"`
+	Prometheus *ServiceConfig        `yaml:"prometheus"`
 }
 
-type ServerConfig struct {
-	Port     int    `yaml:"port"`
-	LogLevel string `yaml:"logLevel"`
+type ServiceConfig struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
 }
 
 func MustNew(path string) *Config {

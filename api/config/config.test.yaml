@@ -1,0 +1,37 @@
+server:
+  port: 9999
+  log_level: "debug"
+  body_limit: 1073741824 # in bytes
+  cors_origins: "*"
+
+postgres:
+  user: "pguser"
+  password: "pgpass"
+  host: "localhost"
+  port: 5432
+  db: "test"
+  ssl: false
+  retry_timeout: 20
+
+prometheus:
+  host: ""
+  port: 9990
+
+s3:
+  host: "localhost"
+  port: 9000
+  access_key: "cjZOWuHbneObwPwORR3l"
+  secret_key: "Ajv47J4BYZDxxYFvXPZFS8Y2oC7JthtNfZL2VuDG"
+  ssl: false
+  buckets:
+    - name: "video"
+      region: "eu-west-1"
+      lock: true
+
+tracing:
+  host: "jaeger"
+  port: 4318
+
+orchestrator:
+  host: "orchestrator"
+  port: 8888

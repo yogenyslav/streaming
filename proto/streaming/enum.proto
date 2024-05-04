@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package streaming;
+
+option go_package = "internal/streaming/pb";
+
+enum ResponseStatus {
+  STATUS_UNDEFINED = 0;
+  STATUS_INIT = 1;
+  STATUS_FRAMER_PROCESSING = 2;
+  STATUS_FRAMER_ERROR = 3;
+  STATUS_DETECTION_PROCESSING = 4;
+  STATUS_DETECTION_ERROR = 5;
+  STATUS_SUCCESS = 6;
+  STATUS_ERROR = 7;
+  STATUS_CANCELED = 8;
+  STATUS_RESPONSER_PROCESSING = 9;
+}
+
+enum QueryType {
+  TYPE_UNDEFINED = 0;
+  TYPE_VIDEO = 1;
+  TYPE_STREAM = 2;
+}
