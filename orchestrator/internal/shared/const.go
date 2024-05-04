@@ -1,11 +1,35 @@
 package shared
 
 const (
-	TopicFramer       = "framer"
-	TopicFramerResult = "framer-result"
+	FramerTopic          = "framer"
+	FramerResTopic       = "framer-res"
+	DetectionCancelTopic = "detection-cancel"
+	DetectionResTopic    = "detection-res"
+	ResponserResTopic    = "responser-res"
 
-	TopicDetection       = "detection"
-	TopicDetectionResult = "detection-result"
+	SuccessMessage = "success"
+	ErrorMessage   = "error"
+)
 
-	TopicResponser = "responser"
+type QueryType int8
+
+const (
+	QueryTypeUndefined QueryType = iota
+	QueryTypeVideo
+	QueryTypeStream
+)
+
+type ResponseStatus int8
+
+const (
+	ResponseStatusUndefined ResponseStatus = iota
+	ResponseStatusInit
+	ResponseStatusFramerProcessing
+	ResponseStatusFramerError
+	ResponseStatusDetectionProcessing
+	ResponseStatusDetectionError
+	ResponseStatusSuccess
+	ResponseStatusError
+	ResponseStatusCanceled
+	ResponseStatusResponserProcessing
 )

@@ -4,13 +4,18 @@ import (
 	"streaming/api/config"
 	"streaming/api/internal/server"
 
-	"github.com/yogenyslav/logger"
+	"github.com/rs/zerolog"
+	"github.com/yogenyslav/pkg/loctime"
 )
 
 func main() {
 	cfg := config.MustNew("./config/config.yaml")
-	logger.SetLevel(logger.ParseLevel(cfg.Server.LogLevel))
-
-	app := server.New(cfg)
-	app.Run()
+	level, err := zerolog.ParseLevel(cfg.Server.LogLevel)
+	if err != nil {
+		panic(err)
+	}
+	zerolog.SetGlobalLevel(level)
+	loctime.SetLocation(loctime.MoscowLocation)
+	srv := server.New(cfg)
+	srv.Run()
 }
