@@ -1,0 +1,58 @@
+server:
+  port: 8888
+  log_level: "debug"
+
+prometheus:
+  host: ""
+  port: 8880
+
+postgres:
+  user: "pguser"
+  password: "pgpass"
+  host: "pg"
+  port: 5432
+  db: "dev"
+  ssl: false
+  retry_timeout: 20
+
+tracing:
+  host: "jaeger"
+  port: 4318
+
+s3:
+  host: "s3"
+  port: 9000
+  access_key: "cjZOWuHbneObwPwORR3l"
+  secret_key: "Ajv47J4BYZDxxYFvXPZFS8Y2oC7JthtNfZL2VuDG"
+  ssl: false
+  buckets:
+    - name: "frames"
+      region: "eu-west-1"
+      lock: true
+
+mongo:
+  host: "mongo"
+  port: 27017
+  db: "dev"
+  auth_type: "no"
+  retry_timeout: 20
+
+kafka:
+  brokers:
+    - host: "kafka"
+      port: 29091
+  topics:
+    - name: "framer"
+      partitions: 1
+    - name: "framer-res"
+      partitions: 1
+    - name: "detection"
+      partitions: 1
+    - name: "detection-res"
+      partitions: 1
+    - name: "detection-cancel"
+      partitions: 1
+    - name: "responser"
+      partitions: 1
+    - name: "responser-res"
+      partitions: 1
