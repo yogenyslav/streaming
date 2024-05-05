@@ -1,7 +1,12 @@
 server:
   port: 9999
-  logLevel: "debug"
-  corsOrigins: "http://localhost:3000"
+  log_level: "debug"
+  body_limit: 1073741824 # in bytes
+  cors_origins: "*"
+
+prometheus:
+  host: ""
+  port: 9990
 
 postgres:
   user: "pguser"
@@ -10,20 +15,23 @@ postgres:
   port: 5432
   db: "dev"
   ssl: false
+  retry_timeout: 20
 
-frameService:
-  host: "frame"
-  port: 10000
-
-minio:
-  host: "minio"
-  accessKey: "accessKey"
-  secretKey: "secretKey"
+s3:
+  host: "s3"
+  port: 9000
+  access_key: "cjZOWuHbneObwPwORR3l"
+  secret_key: "Ajv47J4BYZDxxYFvXPZFS8Y2oC7JthtNfZL2VuDG"
   ssl: false
   buckets:
-    - name: "test-1"
+    - name: "video"
       region: "eu-west-1"
       lock: true
-    - name: "test-2"
-      region: "eu-west-1"
-      lock: false
+
+tracing:
+  host: "jaeger"
+  port: 4318
+
+orchestrator:
+  host: "orchestrator"
+  port: 8888

@@ -1,23 +1,30 @@
 package shared
 
-type QueryType int32
-
 const (
-	TypeFile QueryType = iota
-	TypeLink
+	FormDataVideoKey = "video"
+
+	VideoBucket = "video"
 )
 
-type ResponseStatus int32
+type QueryType int8
 
 const (
-	StatusSuccess ResponseStatus = iota
-	StatusProcessing
-	StatusError
-	StatusCanceled
+	QueryTypeUndefined QueryType = iota
+	QueryTypeVideo
+	QueryTypeStream
 )
 
+type ResponseStatus int8
+
 const (
-	UniqueViolationCode = "23505"
-	PreprocessedFileExt = ".mp4"
-	VideoBucket         = "video"
+	ResponseStatusUndefined ResponseStatus = iota
+	ResponseStatusInit
+	ResponseStatusFramerProcessing
+	ResponseStatusFramerError
+	ResponseStatusDetectionProcessing
+	ResponseStatusDetectionError
+	ResponseStatusSuccess
+	ResponseStatusError
+	ResponseStatusCanceled
+	ResponseStatusResponserProcessing
 )

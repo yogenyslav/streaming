@@ -1,100 +1,121 @@
-version: "3.9"
-
 volumes:
   pg_data:
-  mongo:
-  mongo_conf:
-  kafka_conf:
-  kafka_data:
-  kafka_secrets:
-  static:
+  prom_data:
+  jaeger_data:
+  s3_data:
   zoo_data:
-  minio:
+  kafka_data:
+  mongo_data:
 
 services:
-  minio:
+  mongo:
+    image: mongo:5.0
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - mongo_data:/data/configdb
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper:2888:3888
+    healthcheck:
+      test: echo stat | nc localhost 2181
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - zoo_data:/var/lib/zookeeper/log
+      - zoo_data:/etc/zookeeper/secrets
+      - zoo_data:/var/lib/zookeeper/data
+    ports:
+      - "2181:2181"
+      - "2888:2888"
+      - "3888:3888"
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    healthcheck:
+      test: ps augwwx | egrep [S]upportedKafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9091:9091"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENERS: LISTENER_INT://kafka:29091,LISTENER_EXT://0.0.0.0:9091
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: LISTENER_INT://kafka:29091,LISTENER_EXT://localhost:9091
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTENER_INT:PLAINTEXT,LISTENER_EXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTENER_INT
+      ZOOKEEPER: zookeeper:2181
+    volumes:
+      - kafka_data:/mnt/shared/config
+      - kafka_data:/var/lib/kafka/data
+      - kafka_data:/etc/kafka/secrets
+
+  s3:
     image: minio/minio
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - minio:/data
+      - s3_data:/data
     environment:
       MINIO_ROOT_USER: ${MINIO_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
     command: server --console-address ":9001" /data
 
-  zookeeper-service:
-    image: confluentinc/cp-zookeeper:latest
+  jaeger:
+    image: jaegertracing/all-in-one
+    container_name: jaeger
     environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "22181:2181"
+      - COLLECTOR_OTLP_ENABLED=true
     volumes:
-      - zoo_data:/var/lib/zookeeper/log
-      - zoo_data:/etc/zookeeper/secrets
-      - zoo_data:/var/lib/zookeeper/data
-
-  kafka-service:
-    image: confluentinc/cp-kafka:latest
-    restart: always
-    depends_on:
-      - zookeeper-service
+      - jaeger_data:/tmp
     ports:
-      - "29092:29092"
-    hostname: kafka-service
+      - "5775:5775"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"
+      - "14268:14268"
+      - "14250:14250"
+      - "9411:9411"
+      - "4317:4317"
+      - "4318:4318"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yaml"
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prom_data:/prometheus
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper-service:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-service:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      - GF_SECURITY_ADMIN_USER=${GF_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD}
     volumes:
-      - kafka_conf:/mnt/shared/config
-      - kafka_data:/var/lib/kafka/data
-      - kafka_secrets:/etc/kafka/secrets
-
-
-  detection:
-    build:
-      context: ./detection_service
-      dockerfile: Dockerfile
-    restart: always
-    image: ${PROJECT_DIR}_detection_service
-    depends_on:
-      - kafka-service
-      - frame
-    ports:
-      - "10001:10001"
-    volumes:
-      - static:/static
-
-  mongo:
-    image: mongo:5.0
-    restart: always
-#    environment:
-#      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}
-#      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo:/data/db
-      - mongo_conf:/data/configdb
-
-  frame:
-    build:
-      context: ./frame_service
-      dockerfile: Dockerfile
-    restart: always
-    image: ${PROJECT_DIR}_frame_service
-    depends_on:
-      - mongo
-      - kafka-service
-    ports:
-      - "10000:10000"
-    volumes:
-      - static:/static
+      - ./grafana:/etc/grafana/provisioning/datasources
 
   pg:
     image: postgres:15
@@ -112,17 +133,66 @@ services:
     build:
       context: ./api
       dockerfile: Dockerfile
-      target: final
+      target: prod
     restart: always
-    image: ${PROJECT_DIR}_api
+    image: api
     depends_on:
       - pg
-      - mongo
-      - frame
-      - detection
-      - kafka-service
+      - s3
+      - prometheus
+      - jaeger
+      - orchestrator
     ports:
       - "9999:9999"
-    command: ./main
-    volumes:
-      - static:/static
+      - "9990:9990"
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+      target: prod
+    restart: always
+    image: orchestrator
+    depends_on:
+      - pg
+      - prometheus
+      - jaeger
+      - zookeeper
+      - kafka
+      - framer
+    ports:
+      - "8888:8888"
+      - "8880:8880"
+
+  framer:
+    build:
+      context: ./framer
+      dockerfile: Dockerfile
+    restart: always
+    image: framer
+    depends_on:
+      - s3
+      - kafka
+      - zookeeper
+
+  detection:
+    build:
+      context: ./detection
+      dockerfile: Dockerfile
+    restart: always
+    image: detection
+    depends_on:
+      - kafka
+      - zookeeper
+
+  responser:
+    build:
+      context: ./responser
+      dockerfile: Dockerfile
+    restart: always
+    image: responser
+    depends_on:
+      - s3
+      - kafka
+      - zookeeper
+      - mongo

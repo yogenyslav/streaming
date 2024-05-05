@@ -7,100 +7,114 @@ import (
 	"os/signal"
 	"syscall"
 
-	"streaming/config"
-	servresp "streaming/internal/server/response"
-	"streaming/internal/video"
-	"streaming/internal/video/query"
-	"streaming/internal/video/response"
-	"streaming/pkg/storage/minios3"
+	"streaming/api/config"
+	srvconf "streaming/api/internal/server/config"
+	"streaming/api/internal/streaming/pb"
+	"streaming/api/internal/streaming/query"
+	qc "streaming/api/internal/streaming/query/controller"
+	qh "streaming/api/internal/streaming/query/handler"
+	qr "streaming/api/internal/streaming/query/repo"
+	"streaming/api/internal/streaming/response"
+	rc "streaming/api/internal/streaming/response/controller"
+	rh "streaming/api/internal/streaming/response/handler"
+	rr "streaming/api/internal/streaming/response/repo"
 
+	"github.com/gofiber/contrib/otelfiber/v2"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	loggermw "github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 	recovermw "github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/yogenyslav/logger"
-	"github.com/yogenyslav/storage/postgres"
+	"github.com/rs/zerolog/log"
+	"github.com/yogenyslav/pkg/infrastructure/prom"
+	"github.com/yogenyslav/pkg/infrastructure/tracing"
+	srvresp "github.com/yogenyslav/pkg/response"
+	"github.com/yogenyslav/pkg/storage/minios3"
+	"github.com/yogenyslav/pkg/storage/postgres"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Server struct {
-	cfg *config.Config
-	app *fiber.App
-	pg  *pgxpool.Pool
+	cfg    *config.Config
+	db     postgres.Postgres
+	s3     minios3.S3
+	app    *fiber.App
+	tracer trace.Tracer
 }
 
 func New(cfg *config.Config) *Server {
+	errorHandler := srvresp.NewErrorHandler(errStatus)
 	app := fiber.New(fiber.Config{
-		ServerHeader: "Fiber",
-		BodyLimit:    1024 * 1024 * 1024,
-		ErrorHandler: servresp.ErrorHandler,
-		AppName:      "Streaming API",
+		ErrorHandler: errorHandler.Handler,
+		BodyLimit:    cfg.Server.BodyLimit,
 	})
-	app.Use(loggermw.New())
-	app.Use(recovermw.New())
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.Server.CorsOrigins,
-		AllowHeaders:     "",
-		AllowCredentials: false,
-	}))
 
-	pg := postgres.MustNew(&cfg.Postgres, 20)
+	app.Use(logger.New())
+	app.Use(recovermw.New())
+	app.Use(otelfiber.Middleware())
+
+	tracing.MustSetupOTel(fmt.Sprintf("%s:%d", cfg.Tracing.Host, cfg.Tracing.Port), "api")
+	tracer := otel.Tracer("api")
+
+	s3 := minios3.MustNew(cfg.S3, tracer)
+	if err := s3.CreateBuckets(context.Background()); err != nil {
+		log.Fatal().Err(err).Msg("failed to create s3 buckets")
+	}
 
 	return &Server{
-		cfg: cfg,
-		app: app,
-		pg:  pg,
+		cfg:    cfg,
+		db:     postgres.MustNew(cfg.Postgres, tracer),
+		s3:     s3,
+		app:    app,
+		tracer: tracer,
 	}
 }
 
 func (s *Server) Run() {
-	s3 := minios3.MustNew(&s.cfg.S3Config)
-	if buckets, err := s3.ListBuckets(context.Background()); err != nil || len(buckets) == 0 {
-		if err = s3.CreateBuckets(context.Background()); err != nil {
-			logger.Panicf("failed to create s3 buckets: %v", err)
-		}
-	}
+	defer s.db.GetPool().Close()
 
 	var grpcOpts []grpc.DialOption
 	grpcOpts = append(grpcOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	frameAddr := fmt.Sprintf("%s:%d", s.cfg.FrameService.Host, s.cfg.FrameService.Port)
-	frameConn, err := grpc.Dial(frameAddr, grpcOpts...)
+	orchestratorAddr := fmt.Sprintf("%s:%d", s.cfg.Orchestrator.Host, s.cfg.Orchestrator.Port)
+	conn, err := grpc.Dial(orchestratorAddr, grpcOpts...)
 	if err != nil {
-		logger.Panicf("failed to connect to searchEngine: %v", err)
+		log.Fatal().Err(err).Msg("failed to connect to orchestrator")
 	}
+	defer func() {
+		if err = conn.Close(); err != nil {
+			log.Warn().Err(err).Msg("failed to properly close grpc connection")
+		}
+	}()
 
-	responseRepo := response.NewRepo(s.pg)
-	responseController := response.NewController(responseRepo, frameConn, s3)
-	responseHandler := response.NewHandler(responseController)
-	video.SetupResponseRoutes(s.app, responseHandler)
+	responseRepo := rr.New(s.db)
+	responseController := rc.New(responseRepo, pb.NewOrchestratorClient(conn), s.tracer)
+	responseHandler := rh.New(responseController)
+	response.SetupResponseRoutes(s.app, responseHandler)
 
-	queryRepo := query.NewRepo(s.pg)
-	queryController := query.NewController(queryRepo, responseController, frameConn, s3)
-	queryHandler := query.NewHandler(queryController)
-	video.SetupQueryRoutes(s.app, queryHandler)
+	queryRepo := qr.New(s.db)
+	queryController := qc.New(queryRepo, responseRepo, pb.NewOrchestratorClient(conn), s.s3, s.tracer)
+	queryHandler := qh.New(queryController)
+	query.SetupQueryRoutes(s.app, queryHandler)
 
-	go s.listen(&s.cfg.Server)
+	go s.listen(s.cfg.Server)
+	go prom.HandlePrometheus(s.cfg.Prometheus.Host, s.cfg.Prometheus.Port)
 
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGINT)
-	<-ch
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT)
+	<-c
 
-	s.pg.Close()
-	queryHandler.CancelProcessing()
 	if err = s.app.Shutdown(); err != nil {
-		logger.Warnf("failed to shutdown the app: %v", err)
+		log.Warn().Err(err).Msg("failed to properly shutdown fiber.App")
 	}
-	if err = frameConn.Close(); err != nil {
-		logger.Warnf("failed to close frameService grpc conn: %v", err)
-	}
-	logger.Info("app was gracefully shutdown")
+
+	log.Info().Msg("server was gracefully stopped")
 	os.Exit(0)
 }
 
-func (s *Server) listen(cfg *config.ServerConfig) {
-	if err := s.app.Listen(fmt.Sprintf(":%d", cfg.Port)); err != nil {
-		logger.Errorf("unexpectedly stopping the server: %v", err)
+func (s *Server) listen(cfg *srvconf.ServerConfig) {
+	addr := fmt.Sprintf(":%d", cfg.Port)
+	if err := s.app.Listen(addr); err != nil {
+		log.Error().Err(err).Msg("error while serving http")
 	}
 }

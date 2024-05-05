@@ -1,0 +1,22 @@
+volumes:
+  pg_test_data:
+
+networks:
+  test:
+    driver: bridge
+
+services:
+  pg:
+    image: postgres:15
+    restart: always
+    container_name: pg_test
+    environment:
+      - POSTGRES_USER=${POSTGRES_TEST_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_TEST_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_TEST_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_test_data:/var/lib/postgresql/data
+    networks:
+      - test

@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package streaming;
+
+import "streaming/enum.proto";
+
+option go_package = "internal/streaming/pb";
+
+service Orchestrator {
+  rpc Process(Query) returns (Response) {}
+  rpc GetResult(GetResultReq) returns (Response) {}
+  rpc Cancel(CancelReq) returns (CancelResp) {}
+}
+
+message Query {
+  int64 id = 1;
+  string source = 2;
+  QueryType type = 3;
+}
+
+message GetResultReq {
+  int64 query_id = 1;
+}
+
+message CancelReq {
+  int64 query_id = 1;
+}
+
+message CancelResp {
+  bool success = 1;
+}
+
+message Source {
+  int64 id = 1;
+  string link = 2;
+}
+
+message Response {
+  int64 id = 1;
+  ResponseStatus status = 2;
+  repeated Source sources = 3;
+}
